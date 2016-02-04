@@ -248,6 +248,19 @@ void cKATCPClientBase::deregisterCallbackHandler(boost::shared_ptr<cCallbackInte
     }
 }
 
+void cKATCPClientBase::sendKATCPMessage(const std::string &strMessage)
+{
+    boost::unique_lock<boost::mutex> oLock(m_oWriteQueueMutex);
+
+    m_qstrWriteQueue.push(strMessage);
+
+    //If the queue has gone from being empty to not-empty notify the writing thread.
+    if(m_qstrWriteQueue.size() == 1)
+    {
+        m_oConditionWriteQueueNoLongerEmpty.notify_one();
+    }
+}
+
 std::vector<std::string> cKATCPClientBase::tokeniseString(const std::string &strInputString, const std::string &strSeparators)
 {
     //This funciton is not complete efficient due to extra memory copies of filling the std::vector

@@ -46,8 +46,6 @@ public:
     void                                                connect(const std::string &strServerAddress, uint16_t u16Port);
     void                                                disconnect();
 
-    //Client requests
-
     void                                                sendKATCPMessage(const std::string &strMessage); //Send a custom KATCP message to the connected peer
 
 
