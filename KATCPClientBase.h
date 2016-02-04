@@ -39,17 +39,14 @@ public:
         virtual void                                    connected_callback(bool bConnected) = 0;
     };
 
-    cKATCPClientBase(const std::string &strServerAddress, uint16_t u16Port = 7147);
     cKATCPClientBase();
-    ~cKATCPClientBase();
+    virtual ~cKATCPClientBase();
 
     void                                                connect(const std::string &strServerAddress, uint16_t u16Port);
     void                                                disconnect();
 
     //Client requests
-
     void                                                sendKATCPMessage(const std::string &strMessage); //Send a custom KATCP message to the connected peer
-
 
     //Callback handler registration
     void                                                registerCallbackHandler(cCallbackInterface *pNewHandler);
@@ -57,7 +54,9 @@ public:
     void                                                deregisterCallbackHandler(cCallbackInterface *pHandler);
     void                                                deregisterCallbackHandler(boost::shared_ptr<cCallbackInterface> pHandler);
 
+    //Functions used by the reading thread by left public as they may be usefull externally
     std::vector<std::string>                            tokeniseString(const std::string &strInputString, const std::string &strSeperators);
+    std::vector<std::string>                            readNextKATCPMessage(uint32_t u32Timeout_ms = 0);
 
 protected:
     virtual void                                        threadReadFunction();

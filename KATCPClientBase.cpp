@@ -17,15 +17,13 @@
 
 using namespace std;
 
-cKATCPClientBase::cKATCPClientBase(const string &strServerAddress, uint16_t u16Port) :
-    m_bDisconnectFlag(false)
-{
-    connect(strServerAddress, u16Port);
-}
-
 cKATCPClientBase::cKATCPClientBase() :
     m_bDisconnectFlag(false)
 {
+    //Note don't call connect in base constructor as it may call derived versions of virtual thread functions which may be
+    //correctly populated at the time of the call here.
+
+    //Calling code should call connect after construction of derived class.
 }
 
 cKATCPClientBase::~cKATCPClientBase()
@@ -35,13 +33,29 @@ cKATCPClientBase::~cKATCPClientBase()
 
 void cKATCPClientBase::connect(const string &strServerAddress, uint16_t u16Port)
 {
-    cout << "cKATCPClientBase::connect() Starting KATCP server" << endl;
+    cout << "cKATCPClientBase::connect() Connecting to KATCP server: " << strServerAddress << ":" << u16Port << endl;
 
     //Store config parameters in members
     m_strServerAddress      = strServerAddress;
     m_u16Port               = u16Port;
 
-    //Launch KATCP client in a new thread
+    //Connect the socket
+    m_pSocket.reset(new cInterruptibleBlockingTCPSocket());
+
+    while(!disconnectRequested())
+    {
+        if(m_pSocket->openAndConnect(m_strServerAddress, m_u16Port, 500))
+            break;
+
+        cout << "cKATCPClientBase::connect() Reached timeout attempting to connect to server " << m_strServerAddress << ":" << m_u16Port << ". Retrying in 0.5 seconds..." << endl;
+        boost::this_thread::sleep(boost::posix_time::milliseconds(500));
+    }
+
+    sendConnected(true);
+
+    cout << "cKATCPClientBase::connect() successfully connected KATCP server " << m_strServerAddress << ":" << m_u16Port << "." << endl;
+
+    //Launch KATCP client processing. A thead for sending from the send queue and another for receiving and processing
     m_pSocketReadThread.reset(new boost::thread(&cKATCPClientBase::threadReadFunction, this));
     m_pSocketWriteThread.reset(new boost::thread(&cKATCPClientBase::threadWriteFunction, this));
 }
@@ -78,52 +92,53 @@ bool cKATCPClientBase::disconnectRequested()
     return m_bDisconnectFlag;
 }
 
-void cKATCPClientBase::threadReadFunction()
+vector<string> cKATCPClientBase::readNextKATCPMessage(uint32_t u32Timeout_ms)
 {
-    //Connect the socket
-    m_pSocket.reset(new cInterruptibleBlockingTCPSocket());
+    //Read KATCP message from connected socket and return
+    //a vector of tokens making up the string
+    //tokens are space delimted in the KATCP telnet-like protocol
+
     bool bFullMessage = false;
     string strKATCPMessage;
 
-    while(!disconnectRequested())
+    do
     {
-        if(m_pSocket->openAndConnect(m_strServerAddress, m_u16Port, 500))
-            break;
+        bFullMessage = m_pSocket->readUntil( strKATCPMessage, string("\n"), u32Timeout_ms);
 
-        cout << "cKATCPClientBase::threadFunction() Reached timeout attempting to connect to server " << m_strServerAddress << ":" << m_u16Port << ". Retrying in 0.5 seconds..." << endl;
-        boost::this_thread::sleep(boost::posix_time::milliseconds(500));
+        //Return an empty vector if disconnect requested or if no characters have been received.
+        if(disconnectRequested() || !strKATCPMessage.length())
+            return vector<string>();
+
+        //readUntil function will append to the message string if each iteration if the stop character is not reached.
     }
+    while(!bFullMessage);
 
-    sendConnected(true);
+    return tokeniseString(strKATCPMessage, string(" "));
+}
 
-    cout << "cKATCPClientBase::threadFunction() successfully connected KATCP server " << m_strServerAddress << ":" << m_u16Port << "." << endl;
+void cKATCPClientBase::threadReadFunction()
+{
+    cout << "cKATCPClientBase::threadReadFunction(): Entered thread read function." << endl;
+
+    vector<string> vstrMessageTokens;
 
     while(!disconnectRequested())
     {
-        strKATCPMessage.clear();
+        vstrMessageTokens = readNextKATCPMessage();
 
-        do
-        {
-            bFullMessage = m_pSocket->readUntil( strKATCPMessage, string("\n"), 500);
-
-            if(disconnectRequested())
-                return;
-
-            //readUntil function will append to the message string if each iteration if the stop character is not reached.
-        }
-        while(!bFullMessage);
-
-        vector<string> vstrTokens = tokeniseString(strKATCPMessage, string(" "));
-
-        if(!vstrTokens.size())
+        if(!vstrMessageTokens.size())
             continue;
 
-        processKATCPMessage(vstrTokens);
+        processKATCPMessage(vstrMessageTokens);
     }
+
+    cout << "cKATCPClientBase::threadReadFunction(): Leaving thread read function." << endl;
 }
 
 void cKATCPClientBase::threadWriteFunction()
 {
+    cout << "cKATCPClientBase::threadReadFunction(): Entered thread write function." << endl;
+
     string strMessageToSend;
 
     while(!disconnectRequested())
@@ -159,6 +174,8 @@ void cKATCPClientBase::threadWriteFunction()
                 return;
         }
     }
+
+    cout << "cKATCPClientBase::threadReadFunction(): Leaving thread write function." << endl;
 }
 
 void cKATCPClientBase::sendConnected(bool bConnected)
@@ -182,7 +199,7 @@ void cKATCPClientBase::registerCallbackHandler(cCallbackInterface *pNewHandler)
 
     m_vpCallbackHandlers.push_back(pNewHandler);
 
-    cout << "cKATCPClientBase::::registerCallbackHandler(): Successfully registered callback handler: " << pNewHandler << endl;
+    cout << "cKATCPClientBase::registerCallbackHandler(): Successfully registered callback handler: " << pNewHandler << endl;
 }
 
 void cKATCPClientBase::registerCallbackHandler(boost::shared_ptr<cCallbackInterface> pNewHandler)
@@ -191,7 +208,7 @@ void cKATCPClientBase::registerCallbackHandler(boost::shared_ptr<cCallbackInterf
 
     m_vpCallbackHandlers_shared.push_back(pNewHandler);
 
-    cout << "cKATCPClientBase::::registerCallbackHandler(): Successfully registered callback handler: " << pNewHandler.get() << endl;
+    cout << "cKATCPClientBase::registerCallbackHandler(): Successfully registered callback handler: " << pNewHandler.get() << endl;
 }
 
 void cKATCPClientBase::deregisterCallbackHandler(cCallbackInterface *pHandler)
@@ -217,7 +234,7 @@ void cKATCPClientBase::deregisterCallbackHandler(cCallbackInterface *pHandler)
 
     if(!bSuccess)
     {
-        cout << "cKATCPClientBase::::deregisterCallbackHandler(): Warning: Deregistering callback handler: " << pHandler << " failed. Object instance not found." << endl;
+        cout << "cKATCPClientBase::deregisterCallbackHandler(): Warning: Deregistering callback handler: " << pHandler << " failed. Object instance not found." << endl;
     }
 }
 
