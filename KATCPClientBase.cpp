@@ -96,6 +96,9 @@ void cKATCPClientBase::threadReadFunction()
 
     sendConnected(true);
 
+    //Function that can be overloaded to performs task on connection to the KATCP server.
+    onConnected();
+
     cout << "cKATCPClientBase::threadFunction() successfully connected KATCP server " << m_strServerAddress << ":" << m_u16Port << "." << endl;
 
     while(!disconnectRequested())
@@ -112,6 +115,8 @@ void cKATCPClientBase::threadReadFunction()
             //readUntil function will append to the message string if each iteration if the stop character is not reached.
         }
         while(!bFullMessage);
+
+        //cout << "cKATCPClientBase::threadReadFunction() Got message: " << strKATCPMessage << endl;
 
         vector<string> vstrTokens = tokeniseString(strKATCPMessage, string(" "));
 
@@ -152,6 +157,9 @@ void cKATCPClientBase::threadWriteFunction()
 
         //Write the data to the socket
         //reattempt to send on timeout or failure
+
+        //cout << "cKATCPClientBase::threadWriteFunction() Sending message: " << strMessageToSend << endl;
+
         while(!m_pSocket->write(strMessageToSend, 500));
         {
             //Check for shutdown in between attempts

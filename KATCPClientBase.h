@@ -61,6 +61,7 @@ protected:
     virtual void                                        threadReadFunction();
     virtual void                                        threadWriteFunction();
     virtual void                                        processKATCPMessage(const std::vector<std::string> &vstrMessageTokens) = 0;
+    virtual void                                        onConnected(){;} //Overload with things to do once to connection
 
     //Send calls to all callback handlers:
     void                                                sendConnected(bool bConnected);
