@@ -31,13 +31,14 @@ cKATCPClientBase::~cKATCPClientBase()
     disconnect();
 }
 
-void cKATCPClientBase::connect(const string &strServerAddress, uint16_t u16Port)
+void cKATCPClientBase::connect(const string &strServerAddress, uint16_t u16Port, const string &strDescription)
 {
     cout << "cKATCPClientBase::connect() Connecting to KATCP server: " << strServerAddress << ":" << u16Port << endl;
 
     //Store config parameters in members
     m_strServerAddress      = strServerAddress;
     m_u16Port               = u16Port;
+    m_strDescription        = strDescription;
 
     //Connect the socket
     m_pSocket.reset(new cInterruptibleBlockingTCPSocket());
@@ -51,7 +52,7 @@ void cKATCPClientBase::connect(const string &strServerAddress, uint16_t u16Port)
         boost::this_thread::sleep(boost::posix_time::milliseconds(500));
     }
 
-    sendConnected(true);
+    sendConnected(true, m_strServerAddress, m_u16Port, m_strDescription);
 
     cout << "cKATCPClientBase::connect() successfully connected KATCP server " << m_strServerAddress << ":" << m_u16Port << "." << endl;
 
@@ -178,18 +179,18 @@ void cKATCPClientBase::threadWriteFunction()
     cout << "cKATCPClientBase::threadReadFunction(): Leaving thread write function." << endl;
 }
 
-void cKATCPClientBase::sendConnected(bool bConnected)
+void cKATCPClientBase::sendConnected(bool bConnected, const string &strHostAddress, uint16_t u16Port, const string &strDescription)
 {
     boost::shared_lock<boost::shared_mutex> oLock;
 
     for(uint32_t ui = 0; ui < m_vpCallbackHandlers.size(); ui++)
     {
-        m_vpCallbackHandlers[ui]->connected_callback(bConnected);
+        m_vpCallbackHandlers[ui]->connected_callback(bConnected, strHostAddress, u16Port, strDescription);
     }
 
     for(uint32_t ui = 0; ui < m_vpCallbackHandlers_shared.size(); ui++)
     {
-        m_vpCallbackHandlers_shared[ui]->connected_callback(bConnected);
+        m_vpCallbackHandlers_shared[ui]->connected_callback(bConnected, strHostAddress, u16Port, strDescription);
     }
 }
 

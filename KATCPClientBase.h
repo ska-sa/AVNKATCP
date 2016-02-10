@@ -36,13 +36,13 @@ public:
     class cCallbackInterface
     {
     public:
-        virtual void                                    connected_callback(bool bConnected) = 0;
+        virtual void                                    connected_callback(bool bConnected, const std::string &strHostAddress, uint16_t u16Port, const std::string &strDescription) = 0;
     };
 
     cKATCPClientBase();
     virtual ~cKATCPClientBase();
 
-    void                                                connect(const std::string &strServerAddress, uint16_t u16Port);
+    void                                                connect(const std::string &strServerAddress, uint16_t u16Port, const std::string &strDescription = std::string(""));
     void                                                disconnect();
 
     //Client requests
@@ -64,7 +64,8 @@ protected:
     virtual void                                        processKATCPMessage(const std::vector<std::string> &vstrMessageTokens) = 0;
 
     //Send calls to all callback handlers:
-    void                                                sendConnected(bool bConnected);
+    void                                                sendConnected(bool bConnected, const std::string &strHostAddress = std::string(""),
+                                                                      uint16_t u16Port = 0, const std::string &strDescription = std::string(""));
 
     //Threads
     boost::scoped_ptr<boost::thread>                    m_pSocketReadThread;
@@ -76,6 +77,7 @@ protected:
     //Members description operation state
     std::string                                         m_strServerAddress;
     uint16_t                                            m_u16Port;
+    std::string                                         m_strDescription;
 
     //Other variables
     bool                                                m_bDisconnectFlag;
