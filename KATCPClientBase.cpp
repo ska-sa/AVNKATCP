@@ -10,6 +10,7 @@
 #include <boost/tokenizer.hpp>
 #include <boost/foreach.hpp>
 #include <boost/thread/thread.hpp>
+#include <boost/algorithm/string.hpp>
 #endif
 
 //Local includes
@@ -59,6 +60,13 @@ void cKATCPClientBase::connect(const string &strServerAddress, uint16_t u16Port,
     //Launch KATCP client processing. A thead for sending from the send queue and another for receiving and processing
     m_pSocketReadThread.reset(new boost::thread(&cKATCPClientBase::threadReadFunction, this));
     m_pSocketWriteThread.reset(new boost::thread(&cKATCPClientBase::threadWriteFunction, this));
+
+    //Function that can be overloaded to performs task on connection to the KATCP server.
+    onConnected();
+
+    sendConnected(true);
+
+    cout << "cKATCPClientBase::connect() successfully connected KATCP server " << m_strServerAddress << ":" << m_u16Port << "." << endl;
 }
 
 void cKATCPClientBase::disconnect()
@@ -93,6 +101,20 @@ bool cKATCPClientBase::disconnectRequested()
     return m_bDisconnectFlag;
 }
 
+void cKATCPClientBase::sendKATCPMessage(const std::string &strMessage) //Send a custom KATCP message to the connected peer
+{   
+    //Note: Remeber to add '\n' to the end of the string when using the function!
+
+    //Safely add to queue
+    boost::unique_lock<boost::mutex> oLock(m_oWriteQueueMutex);
+
+    m_qstrWriteQueue.push(strMessage);
+
+    //Wake sending thread if it is waiting on an empty queue
+    if(m_qstrWriteQueue.size() == 1)
+        m_oConditionWriteQueueNoLongerEmpty.notify_all();
+}
+
 vector<string> cKATCPClientBase::readNextKATCPMessage(uint32_t u32Timeout_ms)
 {
     //Read KATCP message from connected socket and return
@@ -125,10 +147,12 @@ void cKATCPClientBase::threadReadFunction()
 
     while(!disconnectRequested())
     {
-        vstrMessageTokens = readNextKATCPMessage();
+        vstrMessageTokens = readNextKATCPMessage(200);
 
         if(!vstrMessageTokens.size())
+        {
             continue;
+        }
 
         processKATCPMessage(vstrMessageTokens);
     }
@@ -138,7 +162,7 @@ void cKATCPClientBase::threadReadFunction()
 
 void cKATCPClientBase::threadWriteFunction()
 {
-    cout << "cKATCPClientBase::threadReadFunction(): Entered thread write function." << endl;
+    cout << "cKATCPClientBase::threadWriteFunction(): Entered thread write function." << endl;
 
     string strMessageToSend;
 
@@ -162,13 +186,13 @@ void cKATCPClientBase::threadWriteFunction()
                 continue;
 
             //Make a of copy of the string and pop it from the queue
-            strMessageToSend = m_qstrWriteQueue.back();
+            strMessageToSend = m_qstrWriteQueue.front();
             m_qstrWriteQueue.pop();
         }
 
         //Write the data to the socket
         //reattempt to send on timeout or failure
-        while(!m_pSocket->write(strMessageToSend, 500));
+        while(!m_pSocket->write(strMessageToSend, 5000));
         {
             //Check for shutdown in between attempts
             if(disconnectRequested())
@@ -176,7 +200,7 @@ void cKATCPClientBase::threadWriteFunction()
         }
     }
 
-    cout << "cKATCPClientBase::threadReadFunction(): Leaving thread write function." << endl;
+    cout << "cKATCPClientBase::threadWriteFunction(): Leaving thread write function." << endl;
 }
 
 void cKATCPClientBase::sendConnected(bool bConnected, const string &strHostAddress, uint16_t u16Port, const string &strDescription)
@@ -280,6 +304,7 @@ std::vector<std::string> cKATCPClientBase::tokeniseString(const std::string &str
     for(boost::tokenizer< boost::char_separator<char> >::iterator it = oTokens.begin(); it != oTokens.end(); ++it)
     {
         vstrTokens.push_back(*it);
+        boost::trim(vstrTokens.back()); //Remove any possible whitespace etc from sides of token
     }
 
     return vstrTokens;

@@ -47,6 +47,7 @@ public:
 
     //Client requests
     void                                                sendKATCPMessage(const std::string &strMessage); //Send a custom KATCP message to the connected peer
+    virtual void                                        onConnected(){;} //Overload with things to do once to connection
 
     //Callback handler registration
     void                                                registerCallbackHandler(cCallbackInterface *pNewHandler);
