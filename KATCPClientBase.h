@@ -33,66 +33,81 @@
 class cKATCPClientBase
 {
 public:
+    //Generic callback interface class (can be extended with other callback functions)
     class cCallbackInterface
     {
     public:
-        virtual void                                    connected_callback(bool bConnected, const std::string &strHostAddress, uint16_t u16Port, const std::string &strDescription) = 0;
+        virtual void                                                connected_callback(bool bConnected, const std::string &strHostAddress, uint16_t u16Port, const std::string &strDescription) = 0;
+    };
+
+    //Callback interface specifically for handling only connection / disconnections
+    class cConnectionCallbackInterface
+    {
+    public:
+        virtual void                                                connected_callback(bool bConnected, const std::string &strHostAddress, uint16_t u16Port, const std::string &strDescription) = 0;
     };
 
     cKATCPClientBase();
     virtual ~cKATCPClientBase();
 
-    void                                                connect(const std::string &strServerAddress, uint16_t u16Port, const std::string &strDescription = std::string(""));
-    void                                                disconnect();
+    void                                                            connect(const std::string &strServerAddress, uint16_t u16Port, const std::string &strDescription = std::string(""));
+    void                                                            disconnect();
 
     //Client requests
-    void                                                sendKATCPMessage(const std::string &strMessage); //Send a custom KATCP message to the connected peer
-    virtual void                                        onConnected(){;} //Overload with things to do once to connection
+    void                                                            sendKATCPMessage(const std::string &strMessage); //Send a custom KATCP message to the connected peer
+    virtual void                                                    onConnected(){;} //Overload with things to do once to connection
 
     //Callback handler registration
-    void                                                registerCallbackHandler(cCallbackInterface *pNewHandler);
-    void                                                registerCallbackHandler(boost::shared_ptr<cCallbackInterface> pNewHandler);
-    void                                                deregisterCallbackHandler(cCallbackInterface *pHandler);
-    void                                                deregisterCallbackHandler(boost::shared_ptr<cCallbackInterface> pHandler);
+    void                                                            registerCallbackHandler(cCallbackInterface *pNewHandler);
+    void                                                            registerCallbackHandler(boost::shared_ptr<cCallbackInterface> pNewHandler);
+    void                                                            deregisterCallbackHandler(cCallbackInterface *pHandler);
+    void                                                            deregisterCallbackHandler(boost::shared_ptr<cCallbackInterface> pHandler);
+
+    void                                                            registerConnectionCallbackHandler(cConnectionCallbackInterface *pNewHandler);
+    void                                                            registerConnectionCallbackHandler(boost::shared_ptr<cConnectionCallbackInterface> pNewHandler);
+    void                                                            deregisterConnectionCallbackHandler(cConnectionCallbackInterface *pHandler);
+    void                                                            deregisterConnectionCallbackHandler(boost::shared_ptr<cConnectionCallbackInterface> pHandler);
 
     //Functions used by the reading thread by left public as they may be usefull externally
-    std::vector<std::string>                            tokeniseString(const std::string &strInputString, const std::string &strSeperators);
-    std::vector<std::string>                            readNextKATCPMessage(uint32_t u32Timeout_ms = 0);
+    std::vector<std::string>                                        tokeniseString(const std::string &strInputString, const std::string &strSeperators);
+    std::vector<std::string>                                        readNextKATCPMessage(uint32_t u32Timeout_ms = 0);
 
 protected:
-    virtual void                                        threadReadFunction();
-    virtual void                                        threadWriteFunction();
-    virtual void                                        processKATCPMessage(const std::vector<std::string> &vstrMessageTokens) = 0;
+    virtual void                                                    threadReadFunction();
+    virtual void                                                    threadWriteFunction();
+    virtual void                                                    processKATCPMessage(const std::vector<std::string> &vstrMessageTokens) = 0;
 
     //Send calls to all callback handlers:
-    void                                                sendConnected(bool bConnected, const std::string &strHostAddress = std::string(""),
-                                                                      uint16_t u16Port = 0, const std::string &strDescription = std::string(""));
+    void                                                            sendConnected(bool bConnected, const std::string &strHostAddress = std::string(""),
+                                                                                  uint16_t u16Port = 0, const std::string &strDescription = std::string(""));
 
     //Threads
-    boost::scoped_ptr<boost::thread>                    m_pSocketReadThread;
-    boost::scoped_ptr<boost::thread>                    m_pSocketWriteThread;
+    boost::scoped_ptr<boost::thread>                                m_pSocketReadThread;
+    boost::scoped_ptr<boost::thread>                                m_pSocketWriteThread;
 
     //Sockets
-    boost::scoped_ptr<cInterruptibleBlockingTCPSocket>  m_pSocket;
+    boost::scoped_ptr<cInterruptibleBlockingTCPSocket>              m_pSocket;
 
     //Members description operation state
-    std::string                                         m_strServerAddress;
-    uint16_t                                            m_u16Port;
-    std::string                                         m_strDescription;
+    std::string                                                     m_strServerAddress;
+    uint16_t                                                        m_u16Port;
+    std::string                                                     m_strDescription;
 
     //Other variables
-    bool                                                m_bDisconnectFlag;
-    boost::shared_mutex                                 m_oFlagMutex;
-    bool                                                disconnectRequested();
+    bool                                                            m_bDisconnectFlag;
+    boost::shared_mutex                                             m_oFlagMutex;
+    bool                                                            disconnectRequested();
 
-    std::queue<std::string>                             m_qstrWriteQueue;
-    boost::condition_variable                           m_oConditionWriteQueueNoLongerEmpty;
-    boost::mutex                                        m_oWriteQueueMutex;
+    std::queue<std::string>                                         m_qstrWriteQueue;
+    boost::condition_variable                                       m_oConditionWriteQueueNoLongerEmpty;
+    boost::mutex                                                    m_oWriteQueueMutex;
 
     //Callback handlers
-    std::vector<cCallbackInterface*>                    m_vpCallbackHandlers;
-    std::vector<boost::shared_ptr<cCallbackInterface> > m_vpCallbackHandlers_shared;
-    boost::shared_mutex                                 m_oCallbackHandlersMutex;
+    std::vector<cCallbackInterface*>                                m_vpCallbackHandlers;
+    std::vector<boost::shared_ptr<cCallbackInterface> >             m_vpCallbackHandlers_shared;
+    std::vector<cConnectionCallbackInterface*>                      m_vpConnectionCallbackHandlers;
+    std::vector<boost::shared_ptr<cConnectionCallbackInterface> >   m_vpConnectionCallbackHandlers_shared;
+    boost::shared_mutex                                             m_oCallbackHandlersMutex;
 };
 
 #endif // KATCP_CLIENT_BASE_H

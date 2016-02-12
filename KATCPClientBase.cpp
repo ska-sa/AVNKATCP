@@ -49,8 +49,8 @@ void cKATCPClientBase::connect(const string &strServerAddress, uint16_t u16Port,
         if(m_pSocket->openAndConnect(m_strServerAddress, m_u16Port, 500))
             break;
 
-        cout << "cKATCPClientBase::connect() Reached timeout attempting to connect to server " << m_strServerAddress << ":" << m_u16Port << ". Retrying in 0.5 seconds..." << endl;
-        boost::this_thread::sleep(boost::posix_time::milliseconds(500));
+        cout << "cKATCPClientBase::connect() Reached timeout attempting to connect to server " << m_strServerAddress << ":" << m_u16Port << ". Retrying in 1 second..." << endl;
+        boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
     }
 
     sendConnected(true, m_strServerAddress, m_u16Port, m_strDescription);
@@ -88,7 +88,7 @@ void cKATCPClientBase::disconnect()
     m_pSocketWriteThread->join();
     m_pSocketWriteThread.reset();
 
-    sendConnected(false);
+    sendConnected(false, m_strServerAddress, m_u16Port, m_strDescription);
 
     cout << "cKATCPClientBase::disconnect() KATCP disconnected." << endl;
 }
@@ -102,7 +102,7 @@ bool cKATCPClientBase::disconnectRequested()
 }
 
 void cKATCPClientBase::sendKATCPMessage(const std::string &strMessage) //Send a custom KATCP message to the connected peer
-{   
+{
     //Note: Remeber to add '\n' to the end of the string when using the function!
 
     //Safely add to queue
@@ -130,7 +130,17 @@ vector<string> cKATCPClientBase::readNextKATCPMessage(uint32_t u32Timeout_ms)
 
         //Return an empty vector if disconnect requested or if no characters have been received.
         if(disconnectRequested() || !strKATCPMessage.length())
+        {
+            //Check if socket is disconnected
+            if(m_pSocket->getLastReadError().message().find("End of file") != string::npos
+                    || m_pSocket->getLastReadError().message().find("Bad file descriptor") != string::npos )
+            {
+                //If it is perform disconnect routine
+                disconnect();
+            }
+
             return vector<string>();
+        }
 
         //readUntil function will append to the message string if each iteration if the stop character is not reached.
     }
@@ -216,6 +226,16 @@ void cKATCPClientBase::sendConnected(bool bConnected, const string &strHostAddre
     {
         m_vpCallbackHandlers_shared[ui]->connected_callback(bConnected, strHostAddress, u16Port, strDescription);
     }
+
+    for(uint32_t ui = 0; ui < m_vpConnectionCallbackHandlers.size(); ui++)
+    {
+        m_vpConnectionCallbackHandlers[ui]->connected_callback(bConnected, strHostAddress, u16Port, strDescription);
+    }
+
+    for(uint32_t ui = 0; ui < m_vpConnectionCallbackHandlers_shared.size(); ui++)
+    {
+        m_vpConnectionCallbackHandlers_shared[ui]->connected_callback(bConnected, strHostAddress, u16Port, strDescription);
+    }
 }
 
 void cKATCPClientBase::registerCallbackHandler(cCallbackInterface *pNewHandler)
@@ -287,6 +307,78 @@ void cKATCPClientBase::deregisterCallbackHandler(boost::shared_ptr<cCallbackInte
     if(!bSuccess)
     {
         cout << "cKATCPClientBase::deregisterCallbackHandler(): Warning: Deregistering callback handler: " << pHandler.get() << " failed. Object instance not found." << endl;
+    }
+}
+
+void cKATCPClientBase::registerConnectionCallbackHandler(cConnectionCallbackInterface *pNewHandler)
+{
+    boost::unique_lock<boost::shared_mutex> oLock(m_oCallbackHandlersMutex);
+
+    m_vpConnectionCallbackHandlers.push_back(pNewHandler);
+
+    cout << "cKATCPClientBase::registerConnectionCallbackHandler(): Successfully registered callback handler: " << pNewHandler << endl;
+}
+
+void cKATCPClientBase::registerConnectionCallbackHandler(boost::shared_ptr<cConnectionCallbackInterface> pNewHandler)
+{
+    boost::unique_lock<boost::shared_mutex> oLock(m_oCallbackHandlersMutex);
+
+    m_vpConnectionCallbackHandlers_shared.push_back(pNewHandler);
+
+    cout << "cKATCPClientBase::registerConnectionCallbackHandler(): Successfully registered callback handler: " << pNewHandler.get() << endl;
+}
+
+void cKATCPClientBase::deregisterConnectionCallbackHandler(cConnectionCallbackInterface *pHandler)
+{
+    boost::unique_lock<boost::shared_mutex> oLock(m_oCallbackHandlersMutex);
+    bool bSuccess = false;
+
+    //Search for matching pointer values and erase
+    for(uint32_t ui = 0; ui < m_vpConnectionCallbackHandlers.size();)
+    {
+        if(m_vpConnectionCallbackHandlers[ui] == pHandler)
+        {
+            m_vpConnectionCallbackHandlers.erase(m_vpConnectionCallbackHandlers.begin() + ui);
+
+            cout << "cKATCPClientBase::deregisterConnectionCallbackHandler(): Deregistered callback handler: " << pHandler << endl;
+            bSuccess = true;
+        }
+        else
+        {
+            ui++;
+        }
+    }
+
+    if(!bSuccess)
+    {
+        cout << "cKATCPClientBase::deregisterConnectionCallbackHandler(): Warning: Deregistering callback handler: " << pHandler << " failed. Object instance not found." << endl;
+    }
+}
+
+void cKATCPClientBase::deregisterConnectionCallbackHandler(boost::shared_ptr<cConnectionCallbackInterface> pHandler)
+{
+    boost::unique_lock<boost::shared_mutex> oLock(m_oCallbackHandlersMutex);
+    bool bSuccess = false;
+
+    //Search for matching pointer values and erase
+    for(uint32_t ui = 0; ui < m_vpConnectionCallbackHandlers_shared.size();)
+    {
+        if(m_vpConnectionCallbackHandlers_shared[ui].get() == pHandler.get())
+        {
+            m_vpConnectionCallbackHandlers_shared.erase(m_vpConnectionCallbackHandlers_shared.begin() + ui);
+
+            cout << "cKATCPClientBase::deregisterConnectionCallbackHandler(): Deregistered callback handler: " << pHandler.get() << endl;
+            bSuccess = true;
+        }
+        else
+        {
+            ui++;
+        }
+    }
+
+    if(!bSuccess)
+    {
+        cout << "cKATCPClientBase::deregisterConnectionCallbackHandler(): Warning: Deregistering callback handler: " << pHandler.get() << " failed. Object instance not found." << endl;
     }
 }
 
