@@ -108,6 +108,8 @@ protected:
     std::vector<cConnectionCallbackInterface*>                      m_vpConnectionCallbackHandlers;
     std::vector<boost::shared_ptr<cConnectionCallbackInterface> >   m_vpConnectionCallbackHandlers_shared;
     boost::shared_mutex                                             m_oCallbackHandlersMutex;
+
+    boost::mutex                                                    m_oKATCPMutex;
 };
 
 #endif // KATCP_CLIENT_BASE_H

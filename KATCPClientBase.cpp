@@ -77,15 +77,18 @@ void cKATCPClientBase::disconnect()
         boost::unique_lock<boost::shared_mutex> oLock(m_oFlagMutex);
 
         m_bDisconnectFlag = true;
-        m_pSocket->cancelCurrrentOperations();
+        if(m_pSocket.get())
+            m_pSocket->cancelCurrrentOperations();
 
         m_oConditionWriteQueueNoLongerEmpty.notify_all();
     }
 
-    m_pSocketReadThread->join();
+    if(m_pSocketReadThread.get())
+        m_pSocketReadThread->join();
     m_pSocketReadThread.reset();
 
-    m_pSocketWriteThread->join();
+    if(m_pSocketWriteThread.get())
+        m_pSocketWriteThread->join();
     m_pSocketWriteThread.reset();
 
     sendConnected(false, m_strServerAddress, m_u16Port, m_strDescription);
