@@ -218,7 +218,7 @@ void cKATCPClientBase::threadWriteFunction()
 
 void cKATCPClientBase::sendConnected(bool bConnected, const string &strHostAddress, uint16_t u16Port, const string &strDescription)
 {
-    boost::shared_lock<boost::shared_mutex> oLock;
+    boost::shared_lock<boost::shared_mutex> oLock(m_oCallbackHandlersMutex);
 
     for(uint32_t ui = 0; ui < m_vpCallbackHandlers.size(); ui++)
     {
