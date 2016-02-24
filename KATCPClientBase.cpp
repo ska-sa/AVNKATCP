@@ -34,12 +34,18 @@ cKATCPClientBase::~cKATCPClientBase()
 
 void cKATCPClientBase::connect(const string &strServerAddress, uint16_t u16Port, const string &strDescription)
 {
-    cout << "cKATCPClientBase::connect() Connecting to KATCP server: " << strServerAddress << ":" << u16Port << endl;
 
     //Store config parameters in members
     m_strServerAddress      = strServerAddress;
     m_u16Port               = u16Port;
     m_strDescription        = strDescription;
+
+    m_pConnectThread.reset(new boost::thread(&cKATCPClientBase::threadConnectFunction, this));
+}
+
+void cKATCPClientBase::threadConnectFunction()
+{
+    cout << "cKATCPClientBase::threadConnectFunction() Connecting to KATCP server: " << m_strServerAddress << ":" << m_u16Port << endl;
 
     //Connect the socket
     m_pSocket.reset(new cInterruptibleBlockingTCPSocket());
@@ -49,13 +55,13 @@ void cKATCPClientBase::connect(const string &strServerAddress, uint16_t u16Port,
         if(m_pSocket->openAndConnect(m_strServerAddress, m_u16Port, 500))
             break;
 
-        cout << "cKATCPClientBase::connect() Reached timeout attempting to connect to server " << m_strServerAddress << ":" << m_u16Port << ". Retrying in 1 second..." << endl;
+        cout << "cKATCPClientBase::threadConnectFunction() Reached timeout attempting to connect to server " << m_strServerAddress << ":" << m_u16Port << ". Retrying in 1 second..." << endl;
         boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
     }
 
     sendConnected(true, m_strServerAddress, m_u16Port, m_strDescription);
 
-    cout << "cKATCPClientBase::connect() successfully connected KATCP server " << m_strServerAddress << ":" << m_u16Port << "." << endl;
+    cout << "cKATCPClientBase::threadConnectFunction() successfully connected KATCP server " << m_strServerAddress << ":" << m_u16Port << "." << endl;
 
     //Launch KATCP client processing. A thead for sending from the send queue and another for receiving and processing
     m_pSocketReadThread.reset(new boost::thread(&cKATCPClientBase::threadReadFunction, this));
@@ -66,7 +72,7 @@ void cKATCPClientBase::connect(const string &strServerAddress, uint16_t u16Port,
 
     sendConnected(true);
 
-    cout << "cKATCPClientBase::connect() successfully connected KATCP server " << m_strServerAddress << ":" << m_u16Port << "." << endl;
+    cout << "cKATCPClientBase::threadConnectFunction() successfully connected KATCP server " << m_strServerAddress << ":" << m_u16Port << "." << endl;
 }
 
 void cKATCPClientBase::disconnect()

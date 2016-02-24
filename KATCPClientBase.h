@@ -77,6 +77,8 @@ protected:
     virtual void                                                    threadWriteFunction();
     virtual void                                                    processKATCPMessage(const std::vector<std::string> &vstrMessageTokens) = 0;
 
+    void                                                            threadConnectFunction();
+
     //Send calls to all callback handlers:
     void                                                            sendConnected(bool bConnected, const std::string &strHostAddress = std::string(""),
                                                                                   uint16_t u16Port = 0, const std::string &strDescription = std::string(""));
@@ -84,6 +86,7 @@ protected:
     //Threads
     boost::scoped_ptr<boost::thread>                                m_pSocketReadThread;
     boost::scoped_ptr<boost::thread>                                m_pSocketWriteThread;
+    boost::scoped_ptr<boost::thread>                                m_pConnectThread;
 
     //Sockets
     boost::scoped_ptr<cInterruptibleBlockingTCPSocket>              m_pSocket;
