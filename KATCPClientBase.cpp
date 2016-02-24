@@ -59,18 +59,17 @@ void cKATCPClientBase::threadConnectFunction()
         boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
     }
 
-    sendConnected(true, m_strServerAddress, m_u16Port, m_strDescription);
-
     cout << "cKATCPClientBase::threadConnectFunction() successfully connected KATCP server " << m_strServerAddress << ":" << m_u16Port << "." << endl;
 
     //Launch KATCP client processing. A thead for sending from the send queue and another for receiving and processing
     m_pSocketReadThread.reset(new boost::thread(&cKATCPClientBase::threadReadFunction, this));
     m_pSocketWriteThread.reset(new boost::thread(&cKATCPClientBase::threadWriteFunction, this));
 
+    //Notify handlers of socket connection
+    sendConnected(true, m_strServerAddress, m_u16Port, m_strDescription);
+
     //Function that can be overloaded to performs task on connection to the KATCP server.
     onConnected();
-
-    sendConnected(true);
 
     cout << "cKATCPClientBase::threadConnectFunction() successfully connected KATCP server " << m_strServerAddress << ":" << m_u16Port << "." << endl;
 }
