@@ -97,6 +97,7 @@ protected:
     std::string                                                     m_strServerAddress;
     uint16_t                                                        m_u16Port;
     std::string                                                     m_strDescription;
+    bool                                                            m_bAutoReconnect;
 
     //Other variables
     bool                                                            m_bDisconnectFlag;

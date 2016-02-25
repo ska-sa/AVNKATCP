@@ -39,8 +39,9 @@ bool cKATCPClientBase::connect(const string &strServerAddress, uint16_t u16Port,
     m_strServerAddress      = strServerAddress;
     m_u16Port               = u16Port;
     m_strDescription        = strDescription;
+    m_bAutoReconnect        = bAutoReconnect;
 
-    if(bAutoReconnect)
+    if(m_bAutoReconnect)
     {
         //Launch in a new thread to prevent blocking
         m_pConnectThread.reset(new boost::thread(&cKATCPClientBase::threadAutoReconnectFunction, this));
@@ -164,8 +165,17 @@ vector<string> cKATCPClientBase::readNextKATCPMessage(uint32_t u32Timeout_ms)
             if(m_pSocket->getLastReadError().message().find("End of file") != string::npos
                     || m_pSocket->getLastReadError().message().find("Bad file descriptor") != string::npos )
             {
+                cout << "cKATCPClientBase::readNextKATCPMessage() Got socket disconnect." << endl;
+
                 //If it is perform disconnect routine
                 disconnect();
+
+                //And then attempt to reconnect if the reconnection flag is set
+                if(m_bAutoReconnect)
+                {
+                    cout << "cKATCPClientBase::readNextKATCPMessage() Auto reconnect flag is set attempting to reconnect." << endl;
+                    m_pConnectThread.reset(new boost::thread(&cKATCPClientBase::threadAutoReconnectFunction, this));
+                }
             }
 
             return vector<string>();
