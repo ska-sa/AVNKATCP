@@ -50,7 +50,8 @@ public:
     cKATCPClientBase();
     virtual ~cKATCPClientBase();
 
-    void                                                            connect(const std::string &strServerAddress, uint16_t u16Port, const std::string &strDescription = std::string(""));
+    bool                                                            connect(const std::string &strServerAddress, uint16_t u16Port, const std::string &strDescription = std::string(""),
+                                                                            bool bAutoReconnect = false);
     void                                                            disconnect();
 
     //Client requests
@@ -77,7 +78,8 @@ protected:
     virtual void                                                    threadWriteFunction();
     virtual void                                                    processKATCPMessage(const std::vector<std::string> &vstrMessageTokens) = 0;
 
-    void                                                            threadConnectFunction();
+    void                                                            threadAutoReconnectFunction();
+    bool                                                            socketConnectFunction();
 
     //Send calls to all callback handlers:
     void                                                            sendConnected(bool bConnected, const std::string &strHostAddress = std::string(""),

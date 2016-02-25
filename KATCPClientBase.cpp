@@ -32,7 +32,7 @@ cKATCPClientBase::~cKATCPClientBase()
     disconnect();
 }
 
-void cKATCPClientBase::connect(const string &strServerAddress, uint16_t u16Port, const string &strDescription)
+bool cKATCPClientBase::connect(const string &strServerAddress, uint16_t u16Port, const string &strDescription, bool bAutoReconnect)
 {
 
     //Store config parameters in members
@@ -40,26 +40,44 @@ void cKATCPClientBase::connect(const string &strServerAddress, uint16_t u16Port,
     m_u16Port               = u16Port;
     m_strDescription        = strDescription;
 
-    m_pConnectThread.reset(new boost::thread(&cKATCPClientBase::threadConnectFunction, this));
+    if(bAutoReconnect)
+    {
+        //Launch in a new thread to prevent blocking
+        m_pConnectThread.reset(new boost::thread(&cKATCPClientBase::threadAutoReconnectFunction, this));
+        return true;
+    }
+    else
+    {
+        return socketConnectFunction();
+    }
 }
 
-void cKATCPClientBase::threadConnectFunction()
+void cKATCPClientBase::threadAutoReconnectFunction()
 {
-    cout << "cKATCPClientBase::threadConnectFunction() Connecting to KATCP server: " << m_strServerAddress << ":" << m_u16Port << endl;
+    while(!disconnectRequested())
+    {
+        if(socketConnectFunction())
+            break;
+
+        cout << "cKATCPClientBase::threadAutoReconnectFunction() Reached timeout attempting to connect to server " << m_strServerAddress << ":" << m_u16Port << ". Retrying in 1 second..." << endl;
+        boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
+    }
+}
+
+bool cKATCPClientBase::socketConnectFunction()
+{
+    cout << "cKATCPClientBase::socketConnectFunction() Connecting to KATCP server: " << m_strServerAddress << ":" << m_u16Port << endl;
 
     //Connect the socket
     m_pSocket.reset(new cInterruptibleBlockingTCPSocket());
 
-    while(!disconnectRequested())
+    if(!m_pSocket->openAndConnect(m_strServerAddress, m_u16Port, 1000))
     {
-        if(m_pSocket->openAndConnect(m_strServerAddress, m_u16Port, 500))
-            break;
-
-        cout << "cKATCPClientBase::threadConnectFunction() Reached timeout attempting to connect to server " << m_strServerAddress << ":" << m_u16Port << ". Retrying in 1 second..." << endl;
-        boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
+        sendConnected(false, m_strServerAddress, m_u16Port, m_strDescription);
+        return false;
     }
 
-    cout << "cKATCPClientBase::threadConnectFunction() successfully connected KATCP server " << m_strServerAddress << ":" << m_u16Port << "." << endl;
+    cout << "cKATCPClientBase::socketConnectFunction() successfully connected KATCP server " << m_strServerAddress << ":" << m_u16Port << "." << endl;
 
     //Launch KATCP client processing. A thead for sending from the send queue and another for receiving and processing
     m_pSocketReadThread.reset(new boost::thread(&cKATCPClientBase::threadReadFunction, this));
@@ -71,8 +89,11 @@ void cKATCPClientBase::threadConnectFunction()
     //Function that can be overloaded to performs task on connection to the KATCP server.
     onConnected();
 
-    cout << "cKATCPClientBase::threadConnectFunction() successfully connected KATCP server " << m_strServerAddress << ":" << m_u16Port << "." << endl;
+    cout << "cKATCPClientBase::socketConnectFunction() successfully connected KATCP server " << m_strServerAddress << ":" << m_u16Port << "." << endl;
+
+    return true;
 }
+
 
 void cKATCPClientBase::disconnect()
 {
