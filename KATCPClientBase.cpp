@@ -135,6 +135,8 @@ void cKATCPClientBase::sendKATCPMessage(const std::string &strMessage) //Send a 
 {
     //Note: Remeber to add '\n' to the end of the string when using the function!
 
+    std::cout << "cKATCPClientBase::sendKATCPMessage(): " << strMessage << std::endl;
+
     //Safely add to queue
     boost::unique_lock<boost::mutex> oLock(m_oWriteQueueMutex);
 
