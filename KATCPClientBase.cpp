@@ -55,6 +55,9 @@ bool cKATCPClientBase::connect(const string &strServerAddress, uint16_t u16Port,
 
 void cKATCPClientBase::threadAutoReconnectFunction()
 {
+    // PJP
+    m_bDisconnectFlag = false;  // reset flag for reconnection
+    // PJP
     while(!disconnectRequested())
     {
         if(socketConnectFunction())
@@ -110,9 +113,9 @@ void cKATCPClientBase::disconnect()
         m_oConditionWriteQueueNoLongerEmpty.notify_all();
     }
 
-    if(m_pSocketReadThread.get())
+/*  PJP   if(m_pSocketReadThread.get())
         m_pSocketReadThread->join();
-    m_pSocketReadThread.reset();
+    m_pSocketReadThread.reset();*/
 
     if(m_pSocketWriteThread.get())
         m_pSocketWriteThread->join();
@@ -164,8 +167,10 @@ vector<string> cKATCPClientBase::readNextKATCPMessage(uint32_t u32Timeout_ms)
         if(disconnectRequested() || !strKATCPMessage.length())
         {
             //Check if socket is disconnected
-            if(m_pSocket->getLastReadError().message().find("End of file") != string::npos
-                    || m_pSocket->getLastReadError().message().find("Bad file descriptor") != string::npos )
+/* PJP            if(m_pSocket->getLastReadError().message().find("End of file") != string::npos
+                    || m_pSocket->getLastReadError().message().find("Bad file descriptor") != string::npos ) */
+            if ((boost::asio::error::eof == m_pSocket->getLastReadError()) ||
+                (boost::asio::error::connection_reset == m_pSocket->getLastReadError()))
             {
                 cout << "cKATCPClientBase::readNextKATCPMessage() Got socket disconnect." << endl;
 
@@ -243,7 +248,7 @@ void cKATCPClientBase::threadWriteFunction()
 
         //Write the data to the socket
         //reattempt to send on timeout or failure
-        while(!m_pSocket->write(strMessageToSend, 5000));
+        while(!m_pSocket->write(strMessageToSend, 5000))
         {
             //Check for shutdown in between attempts
             if(disconnectRequested())
